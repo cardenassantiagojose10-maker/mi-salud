@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mi-salud-v7';
+const CACHE_NAME = 'mi-salud-v8';
 const ASSETS = [
   './',
   './index.html',

@@ -1084,6 +1084,10 @@ function updateHrButtonsUI() {
   $('#hrLiveReadout').hidden = !hrConnected;
   $('#hrLiveBpm').textContent = hrLiveBpm ?? '--';
 
+  // Barra flotante: alcanzable sin scroll mientras haya una grabacion activa
+  $('#hrRecordingBar').hidden = !hrRecording;
+  $('#hrBarBpm').textContent = hrLiveBpm ?? '--';
+
   if (hrRecording) {
     statusPill.textContent = `🔴 Grabando · ${hrDevice?.name || 'sensor'}`;
     statusPill.className = 'pill pill-danger';
@@ -1094,6 +1098,42 @@ function updateHrButtonsUI() {
     statusPill.textContent = '● Sin conectar';
     statusPill.className = 'pill';
   }
+}
+
+// Que muestran ahora mismo la grafica y las estadisticas: la grabacion en
+// vivo manda sobre cualquier sesion guardada que se este mirando.
+function currentHrSamples() {
+  if (hrRecording) return hrSessionSamples;
+  const sessions = state.heartRateSessions;
+  return sessions.find((s) => s.id === hrViewSessionId)?.samples;
+}
+
+function buildHrStatsHtml() {
+  if (hrRecording) {
+    if (!hrSessionSamples.length) return '';
+    const bpms = hrSessionSamples.map((s) => s.bpm);
+    return `
+      <span class="pill pill-danger">Promedio: ${Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length)} lpm</span>
+      <span class="pill">Mín: ${Math.min(...bpms)} lpm</span>
+      <span class="pill">Máx: ${Math.max(...bpms)} lpm</span>
+      <span class="pill">Grabando: ${formatDurationShortEs((Date.now() - hrSessionStartMs) / 1000)}</span>
+    `;
+  }
+  const shown = state.heartRateSessions.find((s) => s.id === hrViewSessionId);
+  return shown
+    ? `
+      <span class="pill pill-danger">Promedio: ${shown.avgBpm} lpm</span>
+      <span class="pill">Mín: ${shown.minBpm} lpm</span>
+      <span class="pill">Máx: ${shown.maxBpm} lpm</span>
+      <span class="pill">Duración: ${formatDurationShortEs(shown.durationSec)}</span>
+    `
+    : '';
+}
+
+function openHrFullscreen() {
+  $('#hrFullscreenChartBox').innerHTML = buildHeartRateChartSvg(currentHrSamples());
+  $('#hrFullscreenStats').innerHTML = buildHrStatsHtml();
+  $('#hrFullscreenModal').showModal();
 }
 
 function renderHeartRatePanel() {
@@ -1121,31 +1161,14 @@ function renderHeartRatePanel() {
     picker.hidden = true;
   }
 
-  const statsBox = $('#hrSessionStats');
-  if (hrRecording) {
-    $('#heartRateChartBox').innerHTML = buildHeartRateChartSvg(hrSessionSamples);
-    if (hrSessionSamples.length) {
-      const bpms = hrSessionSamples.map((s) => s.bpm);
-      statsBox.innerHTML = `
-        <span class="pill pill-danger">Promedio: ${Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length)} lpm</span>
-        <span class="pill">Mín: ${Math.min(...bpms)} lpm</span>
-        <span class="pill">Máx: ${Math.max(...bpms)} lpm</span>
-        <span class="pill">Grabando: ${formatDurationShortEs((Date.now() - hrSessionStartMs) / 1000)}</span>
-      `;
-    } else {
-      statsBox.innerHTML = '';
-    }
-  } else {
-    const shown = sessions.find((s) => s.id === hrViewSessionId);
-    $('#heartRateChartBox').innerHTML = buildHeartRateChartSvg(shown?.samples);
-    statsBox.innerHTML = shown
-      ? `
-        <span class="pill pill-danger">Promedio: ${shown.avgBpm} lpm</span>
-        <span class="pill">Mín: ${shown.minBpm} lpm</span>
-        <span class="pill">Máx: ${shown.maxBpm} lpm</span>
-        <span class="pill">Duración: ${formatDurationShortEs(shown.durationSec)}</span>
-      `
-      : '';
+  const chartHtml = buildHeartRateChartSvg(currentHrSamples());
+  const statsHtml = buildHrStatsHtml();
+  $('#heartRateChartBox').innerHTML = chartHtml;
+  $('#hrSessionStats').innerHTML = statsHtml;
+  // Si la grafica en pantalla completa esta abierta, se mantiene en vivo igual que la del panel
+  if ($('#hrFullscreenModal').open) {
+    $('#hrFullscreenChartBox').innerHTML = chartHtml;
+    $('#hrFullscreenStats').innerHTML = statsHtml;
   }
 
   const historyBox = $('#heartRateHistoryList');
@@ -1994,6 +2017,8 @@ function initEvents() {
   $('#btnHrStart').addEventListener('click', startHrRecording);
   $('#btnHrStop').addEventListener('click', stopHrRecordingAndSave);
   $('#btnHrDisconnect').addEventListener('click', disconnectHeartRateSensor);
+  $('#btnHrStopFloating').addEventListener('click', stopHrRecordingAndSave);
+  $('#btnHrFullscreen').addEventListener('click', openHrFullscreen);
   $('#hrSessionSelect').addEventListener('change', (e) => {
     hrViewSessionId = e.target.value || null;
     renderHeartRatePanel();

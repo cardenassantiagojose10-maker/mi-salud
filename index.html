@@ -395,6 +395,9 @@
                 <div class="hr-stat-row" id="hrSessionStats"></div>
               </div>
               <div class="hr-chart-col">
+                <div class="hr-chart-toolbar">
+                  <button class="btn btn-ghost btn-xs" id="btnHrFullscreen" type="button">⛶ Pantalla completa</button>
+                </div>
                 <div id="heartRateChartBox" class="chart-box"></div>
               </div>
             </div>
@@ -952,6 +955,19 @@
     </form>
   </dialog>
 
+  <dialog id="hrFullscreenModal" class="modal modal-lg hr-fullscreen-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Frecuencia cardíaca</h3>
+        <button class="icon-btn" type="button" data-close-modal="hrFullscreenModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="hr-stat-row" id="hrFullscreenStats"></div>
+        <div id="hrFullscreenChartBox" class="chart-box hr-fullscreen-chart"></div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="reminderAlertModal" class="modal">
     <div class="modal-card reminder-modal-card">
       <div class="modal-header">
@@ -965,6 +981,12 @@
       <div class="modal-footer reminder-modal-footer" id="reminderAlertFooter"></div>
     </div>
   </dialog>
+
+  <!-- Grabacion de frecuencia cardiaca en curso: boton de detener siempre a mano, sin importar el scroll -->
+  <div id="hrRecordingBar" class="hr-recording-bar" hidden>
+    <span class="hr-recording-bar-bpm"><strong id="hrBarBpm">--</strong> lpm</span>
+    <button class="btn" id="btnHrStopFloating" type="button">⏹ Detener y guardar</button>
+  </div>
 
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
