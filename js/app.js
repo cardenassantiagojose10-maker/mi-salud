@@ -620,7 +620,10 @@ function renderTodayView() {
     $('#todaySubtitle').textContent = '¡Excelente! Completaste todas tus tomas programadas para hoy.';
   } else {
     const remaining = todayTotal - todayTaken;
-    $('#todaySubtitle').textContent = `Te ${remaining === 1 ? 'falta 1 toma' : `faltan ${remaining} tomas`} programadas hoy para tu tratamiento.`;
+    $('#todaySubtitle').textContent =
+      remaining === 1
+        ? 'Te falta 1 toma programada hoy para tu tratamiento.'
+        : `Te faltan ${remaining} tomas programadas hoy para tu tratamiento.`;
   }
 
   // Next upcoming consultation

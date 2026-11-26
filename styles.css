@@ -1352,6 +1352,10 @@ dialog.modal::backdrop {
   color: #fef3c7;
 }
 
+.next-dose-pill[hidden] {
+  display: none;
+}
+
 .next-dose-pill {
   display: inline-flex;
   align-items: center;
