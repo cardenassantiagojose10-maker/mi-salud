@@ -74,7 +74,9 @@ export function getInitialState() {
     medications: [],
     doseLogs: [], // { id, medId, dateISO, scheduledTime, status: 'taken'|'skipped', takenAtISO, note }
     consultations: [], // { id, dateISO, timeHM, specialty, doctor, clinic, status: 'completed'|'upcoming', reason, findings, plan, labs, nextControlDate, questions, attachmentIds: [] }
-    symptomLogs: [] // { id, dateISO, pain: 0-10, stiffnessMin: number, fatigue: 0-10, joints: [], note }
+    symptomLogs: [], // { id, dateISO, pain: 0-10, stiffnessMin: number, fatigue: 0-10, joints: [], note }
+    // { id, dateISO, startTime, durationSec, avgBpm, minBpm, maxBpm, deviceName, samples: [{t, bpm}] }
+    heartRateSessions: []
   };
 }
 
@@ -100,7 +102,8 @@ export function loadState() {
       medications: Array.isArray(parsed.medications) ? parsed.medications : [],
       doseLogs: Array.isArray(parsed.doseLogs) ? parsed.doseLogs : [],
       consultations: Array.isArray(parsed.consultations) ? parsed.consultations : [],
-      symptomLogs: Array.isArray(parsed.symptomLogs) ? parsed.symptomLogs : []
+      symptomLogs: Array.isArray(parsed.symptomLogs) ? parsed.symptomLogs : [],
+      heartRateSessions: Array.isArray(parsed.heartRateSessions) ? parsed.heartRateSessions : []
     };
     if (needsMigration) saveState(merged);
     return merged;

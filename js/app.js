@@ -15,6 +15,7 @@ import {
   escapeHtml,
   formatDateLongEs,
   formatDateShortEs,
+  formatDurationShortEs,
   formatFrequencyEs,
   formatRemainingMsEs,
   formatTimeEs,
@@ -40,6 +41,14 @@ let cardSpecialtyFilter = 'all';
 let consultFilter = 'all';
 let deferredInstallPrompt = null;
 let pendingConsultAttachments = [];
+let hrDevice = null;
+let hrCharacteristic = null;
+let hrConnected = false;
+let hrRecording = false;
+let hrLiveBpm = null;
+let hrSessionSamples = [];
+let hrSessionStartMs = 0;
+let hrViewSessionId = null;
 const REMINDER_RUNTIME_KEY = 'mi_salud_arj_reminder_runtime_v1';
 const BASE_TITLE = 'Mi Salud — Seguimiento de tratamiento';
 
@@ -971,8 +980,304 @@ function syncQuickCheckinFromToday(force = false) {
   updateQuickCheckinVisuals();
 }
 
+/* ---------------- Heart rate (Bluetooth sensor) ---------------- */
+function isBluetoothSupported() {
+  return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
+}
+
+function updateHrSupportUI() {
+  const supported = isBluetoothSupported();
+  $('#hrUnsupportedMsg').hidden = supported;
+  if (!supported) $('#btnHrConnect').hidden = true;
+}
+
+// Formato estandar BLE Heart Rate Measurement (0x2A37): el bit 0 de los flags
+// indica si el valor viene en 8 o 16 bits. Ignoramos RR-intervals/energia: no
+// se usan en esta app.
+function parseHeartRateMeasurement(value) {
+  const flags = value.getUint8(0);
+  const rate16Bits = (flags & 0x1) !== 0;
+  return rate16Bits ? value.getUint16(1, true) : value.getUint8(1);
+}
+
+// Reduce una serie larga a lo sumo maxPoints, promediando por bloques, para
+// no dejar que una sesion de horas infle el respaldo en localStorage.
+function downsampleHrSamples(samples, maxPoints) {
+  if (samples.length <= maxPoints) return samples;
+  const bucketSize = samples.length / maxPoints;
+  const out = [];
+  for (let i = 0; i < maxPoints; i += 1) {
+    const start = Math.floor(i * bucketSize);
+    const end = Math.max(start + 1, Math.floor((i + 1) * bucketSize));
+    const slice = samples.slice(start, end);
+    const avgBpm = Math.round(slice.reduce((sum, s) => sum + s.bpm, 0) / slice.length);
+    out.push({ t: slice[Math.floor(slice.length / 2)].t, bpm: avgBpm });
+  }
+  return out;
+}
+
+function pickHrMarkerIndices(total, maxMarkers) {
+  if (total <= maxMarkers) return [...Array(total).keys()];
+  const step = (total - 1) / (maxMarkers - 1);
+  const idx = new Set();
+  for (let i = 0; i < maxMarkers; i += 1) idx.add(Math.round(i * step));
+  return [...idx];
+}
+
+function buildHeartRateChartSvg(samples) {
+  if (!samples || samples.length < 2) {
+    return `
+      <div class="empty-state">
+        <strong>Conecta tu sensor y registra unos segundos</strong>
+        <p>Inicia un registro mientras usas tu banda Garmin para ver aqui la curva de tu frecuencia cardiaca.</p>
+      </div>
+    `;
+  }
+
+  const w = 520;
+  const h = 190;
+  const padX = 34;
+  const padY = 20;
+  const innerW = w - padX * 2;
+  const innerH = h - padY * 2;
+
+  const bpms = samples.map((s) => s.bpm);
+  const yMin = Math.max(0, Math.floor((Math.min(...bpms) - 6) / 5) * 5);
+  const yMax = Math.ceil((Math.max(...bpms) + 6) / 5) * 5;
+  const yRange = Math.max(1, yMax - yMin);
+  const maxT = samples[samples.length - 1].t || 1;
+
+  const toXY = (s) => [padX + (s.t / maxT) * innerW, padY + innerH - ((s.bpm - yMin) / yRange) * innerH];
+
+  const points = samples.map((s) => toXY(s).map((n) => n.toFixed(1)).join(',')).join(' ');
+  const gridVals = [yMin, Math.round((yMin + yMax) / 2), yMax];
+  const markerIdx = pickHrMarkerIndices(samples.length, 16);
+
+  return `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;overflow:visible" role="img" aria-label="Grafica de frecuencia cardiaca">
+      ${gridVals
+        .map((val) => {
+          const y = (padY + innerH - ((val - yMin) / yRange) * innerH).toFixed(1);
+          return `<line x1="${padX}" y1="${y}" x2="${w - padX}" y2="${y}" stroke="var(--border)" stroke-dasharray="4 4"/>
+                  <text x="2" y="${(Number(y) + 4).toFixed(1)}" font-size="11" fill="var(--text-soft)">${val}</text>`;
+        })
+        .join('')}
+      <polyline fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${points}"/>
+      ${markerIdx
+        .map((i) => {
+          const [x, y] = toXY(samples[i]);
+          return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="var(--danger)"><title>${formatDurationShortEs(
+            samples[i].t
+          )} · ${samples[i].bpm} lpm</title></circle>`;
+        })
+        .join('')}
+    </svg>
+  `;
+}
+
+function updateHrButtonsUI() {
+  const statusPill = $('#hrConnStatus');
+  $('#btnHrConnect').hidden = hrConnected || !isBluetoothSupported();
+  $('#btnHrStart').hidden = !hrConnected || hrRecording;
+  $('#btnHrStop').hidden = !hrRecording;
+  $('#btnHrDisconnect').hidden = !hrConnected;
+  $('#hrLiveReadout').hidden = !hrConnected;
+  $('#hrLiveBpm').textContent = hrLiveBpm ?? '--';
+
+  if (hrRecording) {
+    statusPill.textContent = `🔴 Grabando · ${hrDevice?.name || 'sensor'}`;
+    statusPill.className = 'pill pill-danger';
+  } else if (hrConnected) {
+    statusPill.textContent = `● Conectado · ${hrDevice?.name || 'sensor'}`;
+    statusPill.className = 'pill pill-ok';
+  } else {
+    statusPill.textContent = '● Sin conectar';
+    statusPill.className = 'pill';
+  }
+}
+
+function renderHeartRatePanel() {
+  const sessions = [...state.heartRateSessions].sort((a, b) =>
+    (b.dateISO + (b.startTime || '')).localeCompare(a.dateISO + (a.startTime || ''))
+  );
+
+  const picker = $('#hrSessionPickerBox');
+  const select = $('#hrSessionSelect');
+  if (!hrRecording && sessions.length) {
+    picker.hidden = false;
+    if (!hrViewSessionId || !sessions.some((s) => s.id === hrViewSessionId)) {
+      hrViewSessionId = sessions[0].id;
+    }
+    select.innerHTML = sessions
+      .map(
+        (s) =>
+          `<option value="${escapeHtml(s.id)}">${escapeHtml(formatDateShortEs(s.dateISO))} · ${escapeHtml(
+            s.startTime || ''
+          )} (${escapeHtml(formatDurationShortEs(s.durationSec))})</option>`
+      )
+      .join('');
+    select.value = hrViewSessionId;
+  } else {
+    picker.hidden = true;
+  }
+
+  const statsBox = $('#hrSessionStats');
+  if (hrRecording) {
+    $('#heartRateChartBox').innerHTML = buildHeartRateChartSvg(hrSessionSamples);
+    if (hrSessionSamples.length) {
+      const bpms = hrSessionSamples.map((s) => s.bpm);
+      statsBox.innerHTML = `
+        <span class="pill pill-danger">Promedio: ${Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length)} lpm</span>
+        <span class="pill">Mín: ${Math.min(...bpms)} lpm</span>
+        <span class="pill">Máx: ${Math.max(...bpms)} lpm</span>
+        <span class="pill">Grabando: ${formatDurationShortEs((Date.now() - hrSessionStartMs) / 1000)}</span>
+      `;
+    } else {
+      statsBox.innerHTML = '';
+    }
+  } else {
+    const shown = sessions.find((s) => s.id === hrViewSessionId);
+    $('#heartRateChartBox').innerHTML = buildHeartRateChartSvg(shown?.samples);
+    statsBox.innerHTML = shown
+      ? `
+        <span class="pill pill-danger">Promedio: ${shown.avgBpm} lpm</span>
+        <span class="pill">Mín: ${shown.minBpm} lpm</span>
+        <span class="pill">Máx: ${shown.maxBpm} lpm</span>
+        <span class="pill">Duración: ${formatDurationShortEs(shown.durationSec)}</span>
+      `
+      : '';
+  }
+
+  const historyBox = $('#heartRateHistoryList');
+  historyBox.innerHTML = !sessions.length
+    ? `
+      <div class="empty-state">
+        <strong>Sin sesiones registradas todavía</strong>
+        <p>Conecta tu banda Garmin por Bluetooth e inicia un registro para ver tu frecuencia cardiaca aqui.</p>
+      </div>
+    `
+    : sessions
+        .map(
+          (s) => `
+      <div class="hr-session-card">
+        <div class="hr-session-card-main">
+          <strong>${escapeHtml(formatDateLongEs(s.dateISO))} · ${escapeHtml(s.startTime || '')}</strong>
+          <p class="panel-sub">Promedio ${s.avgBpm} lpm (${s.minBpm}-${s.maxBpm}) · ${escapeHtml(
+            formatDurationShortEs(s.durationSec)
+          )} · ${escapeHtml(s.deviceName || 'Sensor Bluetooth')}</p>
+        </div>
+        <div class="hr-session-card-actions">
+          <button class="btn btn-soft btn-xs" type="button" data-view-hr-session="${escapeHtml(s.id)}">Ver grafica</button>
+          <button class="btn btn-danger-ghost btn-xs" type="button" data-del-hr-session="${escapeHtml(s.id)}">Eliminar</button>
+        </div>
+      </div>
+    `
+        )
+        .join('');
+
+  updateHrButtonsUI();
+}
+
+function onHeartRateValueChanged(event) {
+  const bpm = parseHeartRateMeasurement(event.target.value);
+  if (!Number.isFinite(bpm) || bpm <= 0) return;
+  hrLiveBpm = bpm;
+  if (hrRecording) {
+    hrSessionSamples.push({ t: Math.round((Date.now() - hrSessionStartMs) / 1000), bpm });
+  }
+  renderHeartRatePanel();
+}
+
+function startHrRecording() {
+  if (!hrConnected) return;
+  hrRecording = true;
+  hrSessionSamples = [];
+  hrSessionStartMs = Date.now();
+  renderHeartRatePanel();
+  showToast('Grabando tu frecuencia cardiaca...');
+}
+
+function stopHrRecordingAndSave() {
+  hrRecording = false;
+  const samples = hrSessionSamples;
+  const durationSec = Math.max(0, Math.round((Date.now() - hrSessionStartMs) / 1000));
+  hrSessionSamples = [];
+
+  if (samples.length < 3) {
+    showToast('La sesion fue muy corta para guardarla.');
+    renderHeartRatePanel();
+    return;
+  }
+
+  const bpms = samples.map((s) => s.bpm);
+  const session = {
+    id: uid('hr'),
+    dateISO: toLocalDateISO(new Date(hrSessionStartMs)),
+    startTime: toLocalTimeHM(new Date(hrSessionStartMs)),
+    durationSec,
+    avgBpm: Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length),
+    minBpm: Math.min(...bpms),
+    maxBpm: Math.max(...bpms),
+    deviceName: hrDevice?.name || 'Sensor Bluetooth',
+    samples: downsampleHrSamples(samples, 300)
+  };
+  state.heartRateSessions.push(session);
+  hrViewSessionId = session.id;
+  persist();
+  renderHeartRatePanel();
+  showToast(`Sesion guardada: ${session.avgBpm} lpm promedio (${formatDurationShortEs(durationSec)}).`);
+}
+
+function handleHrGattDisconnected() {
+  const wasRecording = hrRecording;
+  hrConnected = false;
+  hrLiveBpm = null;
+  hrCharacteristic = null;
+  if (wasRecording) stopHrRecordingAndSave();
+  else showToast('Sensor Bluetooth desconectado.');
+  renderHeartRatePanel();
+}
+
+async function connectHeartRateSensor() {
+  if (!isBluetoothSupported()) {
+    showToast('Tu navegador no admite Bluetooth. Usa Chrome en Android.');
+    return;
+  }
+  try {
+    const device = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
+    device.addEventListener('gattserverdisconnected', handleHrGattDisconnected);
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('heart_rate');
+    const characteristic = await service.getCharacteristic('heart_rate_measurement');
+    await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', onHeartRateValueChanged);
+
+    hrDevice = device;
+    hrCharacteristic = characteristic;
+    hrConnected = true;
+    renderHeartRatePanel();
+    showToast(`Conectado a ${device.name || 'tu sensor'}.`);
+  } catch (err) {
+    if (err?.name === 'NotFoundError') return;
+    showToast('No se pudo conectar: ' + (err?.message || 'error desconocido'));
+  }
+}
+
+function disconnectHeartRateSensor() {
+  if (hrRecording) stopHrRecordingAndSave();
+  if (hrDevice?.gatt?.connected) {
+    hrDevice.gatt.disconnect();
+  } else {
+    hrConnected = false;
+    hrLiveBpm = null;
+    hrCharacteristic = null;
+    renderHeartRatePanel();
+  }
+}
+
 function renderSymptomsView() {
   syncQuickCheckinFromToday();
+  renderHeartRatePanel();
   const sortedDesc = [...state.symptomLogs].sort((a, b) => b.dateISO.localeCompare(a.dateISO));
   const chartBox = $('#symptomChartBox');
   const historyBox = $('#symptomHistoryList');
@@ -1683,6 +1988,17 @@ function initEvents() {
     renderAll();
     showToast('Chequeo de bienestar de hoy guardado.');
   });
+  // --- Frecuencia cardiaca (sensor Bluetooth) ---
+  updateHrSupportUI();
+  $('#btnHrConnect').addEventListener('click', connectHeartRateSensor);
+  $('#btnHrStart').addEventListener('click', startHrRecording);
+  $('#btnHrStop').addEventListener('click', stopHrRecordingAndSave);
+  $('#btnHrDisconnect').addEventListener('click', disconnectHeartRateSensor);
+  $('#hrSessionSelect').addEventListener('change', (e) => {
+    hrViewSessionId = e.target.value || null;
+    renderHeartRatePanel();
+  });
+
   $('#btnNotifPill').addEventListener('click', () => {
     if ('Notification' in window && Notification.permission === 'default') {
       requestNotifPermission();
@@ -1856,6 +2172,26 @@ function initEvents() {
       persist();
       renderAll();
       showToast('Registro eliminado.');
+      return;
+    }
+
+    const viewHrBtn = e.target.closest('[data-view-hr-session]');
+    if (viewHrBtn) {
+      hrViewSessionId = viewHrBtn.dataset.viewHrSession;
+      renderHeartRatePanel();
+      $('#heartRateChartBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    const delHrBtn = e.target.closest('[data-del-hr-session]');
+    if (delHrBtn) {
+      const id = delHrBtn.dataset.delHrSession;
+      if (!confirm('¿Eliminar esta sesión de frecuencia cardíaca?')) return;
+      state.heartRateSessions = state.heartRateSessions.filter((s) => s.id !== id);
+      if (hrViewSessionId === id) hrViewSessionId = null;
+      persist();
+      renderHeartRatePanel();
+      showToast('Sesión eliminada.');
       return;
     }
 

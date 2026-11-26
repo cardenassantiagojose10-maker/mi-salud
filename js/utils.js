@@ -294,6 +294,14 @@ export function getCountdownLabel(targetDateISO, todayISO = toLocalDateISO()) {
   return `Hace ${Math.abs(diff)} días`;
 }
 
+export function formatDurationShortEs(totalSeconds) {
+  const s = Math.max(0, Math.round(Number(totalSeconds) || 0));
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem ? `${m} min ${rem} s` : `${m} min`;
+}
+
 export function formatRemainingMsEs(ms) {
   if (ms <= 0) return 'Ahora';
   const totalMin = Math.ceil(ms / 60000);

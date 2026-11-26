@@ -362,6 +362,46 @@
             </div>
           </div>
 
+          <!-- Heart Rate (Garmin / BLE sensor) -->
+          <div class="panel" id="heartRatePanel">
+            <div class="panel-header">
+              <div>
+                <h2>Frecuencia cardíaca</h2>
+                <p class="panel-sub">Conecta tu banda Garmin (u otro sensor Bluetooth) y guarda la sesión</p>
+              </div>
+              <span class="pill" id="hrConnStatus">● Sin conectar</span>
+            </div>
+
+            <p class="panel-sub" id="hrUnsupportedMsg" hidden>
+              Este navegador no admite conexión Bluetooth. Usa Chrome en Android para conectar tu banda Garmin.
+            </p>
+
+            <div class="hr-layout">
+              <div class="hr-live-col">
+                <div class="hr-live-readout" id="hrLiveReadout" hidden>
+                  <strong id="hrLiveBpm">--</strong>
+                  <span>lpm</span>
+                </div>
+                <div class="hr-actions">
+                  <button class="btn btn-primary" id="btnHrConnect" type="button">Conectar sensor Bluetooth</button>
+                  <button class="btn btn-secondary" id="btnHrStart" type="button" hidden>Iniciar registro</button>
+                  <button class="btn btn-danger-ghost" id="btnHrStop" type="button" hidden>Detener y guardar</button>
+                  <button class="btn btn-ghost btn-xs" id="btnHrDisconnect" type="button" hidden>Desconectar</button>
+                </div>
+                <label class="field" id="hrSessionPickerBox" hidden>
+                  <span>Sesión mostrada</span>
+                  <select class="input select-sm" id="hrSessionSelect"></select>
+                </label>
+                <div class="hr-stat-row" id="hrSessionStats"></div>
+              </div>
+              <div class="hr-chart-col">
+                <div id="heartRateChartBox" class="chart-box"></div>
+              </div>
+            </div>
+
+            <div id="heartRateHistoryList" class="stack-list mt-sm"></div>
+          </div>
+
           <div class="symptoms-layout">
             <div class="panel">
               <div class="panel-header">

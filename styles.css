@@ -45,6 +45,13 @@ body.dark {
   box-sizing: border-box;
 }
 
+/* Cualquier regla de este archivo que ponga display:flex/grid/block en un
+   selector con la misma especificidad que [hidden] puede ganarle al atributo
+   nativo en el cascade. Esto lo deja ganando siempre. */
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -1716,6 +1723,7 @@ dialog.modal::backdrop {
   .today-grid,
   .symptoms-layout,
   .checkin-grid,
+  .hr-layout,
   .profile-grid {
     grid-template-columns: 1fr;
   }
@@ -1858,4 +1866,79 @@ dialog.modal::backdrop {
   .card-specialty-picker {
     display: none;
   }
+}
+
+/* ---------------- Frecuencia cardiaca (sensor Bluetooth) ---------------- */
+.hr-layout {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 24px;
+  align-items: start;
+  margin-top: 14px;
+}
+
+.hr-live-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
+
+.hr-live-readout strong {
+  font-size: 2.6rem;
+  line-height: 1;
+  color: var(--danger);
+}
+
+.hr-live-readout span {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.hr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.hr-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hr-session-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.hr-session-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hr-session-card-main p {
+  margin: 0;
+}
+
+.hr-session-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
 }
