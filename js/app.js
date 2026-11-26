@@ -499,7 +499,12 @@ function renderSidebarAndHeader() {
 
   $('#sidebarAvatar').textContent = initials || '··';
   $('#sidebarName').textContent = p.fullName || 'Tu perfil';
-  $('#sidebarMeta').textContent = `${p.age || '—'} años · ${p.heightCm || '—'} cm · ${p.weightKg || '—'} kg`;
+  const metaBits = [
+    p.age ? `${p.age} años` : null,
+    p.heightCm ? `${p.heightCm} cm` : null,
+    p.weightKg ? `${p.weightKg} kg` : null
+  ].filter(Boolean);
+  $('#sidebarMeta').textContent = metaBits.length ? metaBits.join(' · ') : 'Completa tus datos';
   $('#topbarDate').textContent = formatDateLongEs(toLocalDateISO());
 
   const todayDoses = getScheduledDosesForDate(toLocalDateISO());
@@ -1059,9 +1064,9 @@ function renderProfileView() {
   const activeMeds = state.medications.filter((m) => m.active !== false);
   $('#medicalCardContent').innerHTML = `
     <div class="card-kv-grid">
-      <div class="kv-item"><span>Paciente</span><strong>${escapeHtml(p.fullName)}</strong></div>
-      <div class="kv-item"><span>Edad</span><strong>${escapeHtml(p.age)} años</strong></div>
-      <div class="kv-item"><span>Estatura / Peso</span><strong>${escapeHtml(p.heightCm)} cm · ${escapeHtml(p.weightKg)} kg</strong></div>
+      <div class="kv-item"><span>Paciente</span><strong>${escapeHtml(p.fullName || 'Sin especificar')}</strong></div>
+      <div class="kv-item"><span>Edad</span><strong>${p.age ? escapeHtml(p.age) + ' años' : 'Sin especificar'}</strong></div>
+      <div class="kv-item"><span>Estatura / Peso</span><strong>${p.heightCm || p.weightKg ? `${p.heightCm ? escapeHtml(p.heightCm) + ' cm' : '—'} · ${p.weightKg ? escapeHtml(p.weightKg) + ' kg' : '—'}` : 'Sin especificar'}</strong></div>
       <div class="kv-item"><span>Diagnóstico</span><strong>${escapeHtml(p.diagnosis || 'Sin especificar')}</strong></div>
       <div class="kv-item"><span>Grupo sanguíneo</span><strong>${escapeHtml(p.bloodType || 'Sin especificar')}</strong></div>
       <div class="kv-item"><span>EPS / Seguro</span><strong>${escapeHtml(p.insurance || 'Sin especificar')}</strong></div>
