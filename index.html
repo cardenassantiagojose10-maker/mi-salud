@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#5b46f6" />
+  <meta name="description" content="App para recordatorio de medicamentos, seguimiento de síntomas y registro de consultas médicas. Pensada para tratamientos crónicos y enfermedades autoinmunes." />
+  <title>Mi Salud — Seguimiento de tratamiento</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar Desktop -->
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l2.2 4.8L19 10l-4.8 2.2L12 17l-2.2-4.8L5 10l4.8-2.2z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">Mi Rutina &amp; Salud</div>
+          <div class="brand-sub">Espacio personal</div>
+        </div>
+      </div>
+
+      <div class="patient-chip">
+        <div class="patient-avatar" id="sidebarAvatar">··</div>
+        <div class="patient-chip-info">
+          <strong id="sidebarName">Tu perfil</strong>
+          <span id="sidebarMeta">Completa tus datos</span>
+        </div>
+      </div>
+
+      <nav class="nav-list" id="desktopNav">
+        <button class="nav-item active" data-view="today" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>Hoy</span>
+          <span class="nav-badge" id="navTodayBadge" hidden>0</span>
+        </button>
+        <button class="nav-item" data-view="meds" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.5 20.5 19 12a4.95 4.95 0 1 0-7-7L3.5 13.5a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+          <span>Medicamentos</span>
+        </button>
+        <button class="nav-item" data-view="consults" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+          <span>Consultas</span>
+        </button>
+        <button class="nav-item" data-view="symptoms" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+          <span>Bienestar</span>
+        </button>
+        <button class="nav-item" data-view="profile" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+          <span>Mi Perfil</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn btn-ghost btn-sm full-width" id="btnToggleTheme" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          <span id="themeLabel">Modo oscuro</span>
+        </button>
+        <button class="btn btn-soft btn-sm full-width" id="btnInstallPwaSidebar" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <span>Instalar App</span>
+        </button>
+        <p class="disclaimer-mini">Registro personal. Sigue siempre las indicaciones de tu reumatólogo.</p>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-brand-btn" data-view="today" type="button">
+            <span class="brand-mark small" aria-hidden="true">✦</span>
+            <span>Mi Rutina &amp; Salud</span>
+          </button>
+          <div class="topbar-date" id="topbarDate"></div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-ghost btn-sm" id="btnNotifPill" type="button" title="Estado de recordatorios">
+            <span class="status-dot" id="notifDot"></span>
+            <span id="notifStatusText">Alertas</span>
+          </button>
+          <button class="btn btn-primary btn-sm" id="btnQuickAddMed" type="button">+ Medicamento</button>
+          <button class="btn btn-secondary btn-sm" id="btnQuickAddConsult" type="button">+ Consulta</button>
+        </div>
+      </header>
+
+      <!-- Active Due Reminder Banner -->
+      <div id="dueBannerContainer" class="due-banner-wrap" aria-live="polite"></div>
+
+      <main class="content" id="mainContent">
+        <!-- View: HOY -->
+        <section id="view-today" class="view active" aria-labelledby="todayHeading">
+          <div class="hero-card">
+            <div class="hero-copy">
+              <div class="hero-eyebrows">
+                <span class="eyebrow" id="todayDiagnosisBadge">Panel Diario</span>
+                <span class="eyebrow eyebrow-gold" id="todayStreakBadge">🔥 0 días de racha</span>
+              </div>
+              <h1 id="todayHeading">Hola</h1>
+              <p id="todaySubtitle">Cargando tu agenda de medicación y controles...</p>
+              <div class="next-dose-pill" id="nextDoseCountdown" hidden></div>
+            </div>
+            <div class="hero-metrics">
+              <div class="metric-box ring-metric">
+                <div class="ring-wrap" aria-hidden="true">
+                  <svg class="ring-svg" viewBox="0 0 80 80">
+                    <circle class="ring-bg" cx="40" cy="40" r="33"/>
+                    <circle class="ring-fg" id="adherenceRingCircle" cx="40" cy="40" r="33" stroke-dasharray="207.35" stroke-dashoffset="207.35"/>
+                  </svg>
+                  <span class="ring-pct" id="todayAdherencePct">0%</span>
+                </div>
+                <div>
+                  <span class="metric-label">Adherencia hoy</span>
+                  <strong class="metric-value" id="todayAdherenceText">0/0</strong>
+                </div>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Próximo control</span>
+                <strong class="metric-value small" id="nextConsultShort">Sin agendar</strong>
+                <span class="metric-sub" id="nextConsultSub">Agrega tus citas en Consultas</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive 7-day Week Strip -->
+          <div class="week-strip-wrap">
+            <div class="week-strip" id="weekStrip" role="tablist" aria-label="Selector semanal de tomas"></div>
+          </div>
+
+          <div class="today-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2 id="todayScheduleTitle">Tomas programadas hoy</h2>
+                  <p class="panel-sub" id="todayScheduleDate"></p>
+                </div>
+                <div class="dose-actions">
+                  <button class="btn btn-ghost btn-sm" id="btnResetToToday" type="button" hidden>Volver a hoy</button>
+                  <button class="btn btn-soft btn-sm" id="btnAddMedFromToday" type="button">+ Agregar</button>
+                </div>
+              </div>
+              <div id="todayDosesList" class="stack-list"></div>
+            </div>
+
+            <div class="today-side-col">
+              <div class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2>Según necesidad (SOS)</h2>
+                    <p class="panel-sub">Analgésicos o rescate sin horario fijo</p>
+                  </div>
+                </div>
+                <div id="todayPrnList" class="stack-list"></div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-header">
+                  <div>
+                    <h2>Cómo te sientes hoy</h2>
+                    <p class="panel-sub">Chequeo rápido para tu reumatólogo</p>
+                  </div>
+                  <button class="btn btn-soft btn-sm" id="btnLogSymptomToday" type="button">Registrar</button>
+                </div>
+                <div id="todaySymptomSummary"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- View: MEDICAMENTOS -->
+        <section id="view-meds" class="view" aria-labelledby="medsHeading">
+          <div class="section-header">
+            <div>
+              <h1 id="medsHeading">Mis Medicamentos</h1>
+              <p class="section-sub">Horarios diarios, semanales (ej. Metotrexato / Ácido fólico), cada X días o SOS.</p>
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-primary" id="btnNewMed" type="button">+ Nuevo medicamento</button>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="segmented" id="medFilterGroup" role="tablist">
+              <button class="seg-btn active" data-med-filter="active" type="button">Activos</button>
+              <button class="seg-btn" data-med-filter="all" type="button">Todos</button>
+              <button class="seg-btn" data-med-filter="paused" type="button">Pausados</button>
+            </div>
+            <input type="search" id="medSearchInput" class="input search-input" placeholder="Buscar medicamento o instrucción..." />
+          </div>
+
+          <div id="medsGrid" class="cards-grid"></div>
+        </section>
+
+        <!-- View: CONSULTAS -->
+        <section id="view-consults" class="view" aria-labelledby="consultsHeading">
+          <div class="section-header">
+            <div>
+              <h1 id="consultsHeading">Consultas Médicas</h1>
+              <p class="section-sub">Historial clínico, resultados de laboratorio, indicaciones y próximas citas.</p>
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-primary" id="btnNewConsult" type="button">+ Registrar consulta</button>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="segmented" id="consultFilterGroup">
+              <button class="seg-btn active" data-consult-filter="all" type="button">Todas</button>
+              <button class="seg-btn" data-consult-filter="upcoming" type="button">Próximas</button>
+              <button class="seg-btn" data-consult-filter="completed" type="button">Realizadas</button>
+            </div>
+            <select id="consultSpecialtyFilter" class="input select-sm" aria-label="Filtrar por especialidad">
+              <option value="all">Todas las especialidades</option>
+              <option value="Reumatología">Reumatología</option>
+              <option value="Oftalmología">Oftalmología</option>
+              <option value="Fisioterapia">Fisioterapia</option>
+              <option value="Medicina General">Medicina General</option>
+              <option value="Laboratorio">Laboratorio</option>
+              <option value="Otra">Otra</option>
+            </select>
+            <input type="search" id="consultSearchInput" class="input search-input" placeholder="Buscar doctor, síntomas, exámenes..." />
+          </div>
+
+          <div id="consultsList" class="consults-list"></div>
+        </section>
+
+        <!-- View: BIENESTAR -->
+        <section id="view-symptoms" class="view" aria-labelledby="symptomsHeading">
+          <div class="section-header">
+            <div>
+              <h1 id="symptomsHeading">Seguimiento de Bienestar</h1>
+              <p class="section-sub">Toca las articulaciones con molestia en el mapa corporal y registra cómo te sientes hoy.</p>
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-secondary" id="btnNewSymptom" type="button">Registro por fecha</button>
+            </div>
+          </div>
+
+          <!-- Interactive Body Map + Live Check-in -->
+          <div class="panel interactive-checkin-panel">
+            <div class="checkin-grid">
+              <div class="bodymap-col">
+                <div class="panel-header" style="margin-bottom:8px;">
+                  <div>
+                    <h2>Mapa articular interactivo</h2>
+                    <p class="panel-sub">Toca los puntos donde sientas dolor o inflamación hoy</p>
+                  </div>
+                  <button class="btn btn-ghost btn-xs" id="btnClearBodyJoints" type="button">Limpiar</button>
+                </div>
+                <div class="bodymap-wrap">
+                  <svg id="interactiveBodySvg" viewBox="0 0 260 360" class="bodymap-svg" role="img" aria-label="Mapa corporal interactivo de articulaciones">
+                    <!-- Clean Stylized Silhouette -->
+                    <g fill="var(--surface-2)" stroke="var(--border)" stroke-width="2" stroke-linejoin="round">
+                      <circle cx="130" cy="40" r="22"/>
+                      <rect x="122" y="61" width="16" height="16" rx="6"/>
+                      <path d="M90 80 Q130 72 170 80 L182 152 L162 156 L158 104 L154 176 L106 176 L102 104 L98 156 L78 152 Z"/>
+                      <path d="M80 152 L66 202 L54 202 L68 150 Z"/>
+                      <path d="M180 152 L194 202 L206 202 L192 150 Z"/>
+                      <path d="M107 176 L127 176 L122 252 L119 322 L103 322 L105 252 Z"/>
+                      <path d="M133 176 L153 176 L155 252 L157 322 L141 322 L138 252 Z"/>
+                    </g>
+                    <!-- Interactive Joint Hotspots -->
+                    <g class="joint-node" data-joint="Mandíbula (ATM)" tabindex="0" role="button" aria-label="Mandíbula">
+                      <circle cx="130" cy="52" r="8"/><text x="144" y="55">Mandíbula</text>
+                    </g>
+                    <g class="joint-node" data-joint="Cuello / Espalda" tabindex="0" role="button" aria-label="Cuello y espalda">
+                      <circle cx="130" cy="112" r="9"/><text x="130" y="132" text-anchor="middle">Espalda</text>
+                    </g>
+                    <g class="joint-node" data-joint="Hombros" tabindex="0" role="button" aria-label="Hombros">
+                      <circle cx="88" cy="86" r="9"/><circle cx="172" cy="86" r="9"/>
+                      <text x="52" y="84">Hombros</text>
+                    </g>
+                    <g class="joint-node" data-joint="Codos" tabindex="0" role="button" aria-label="Codos">
+                      <circle cx="74" cy="148" r="8"/><circle cx="186" cy="148" r="8"/>
+                      <text x="42" y="151">Codos</text>
+                    </g>
+                    <g class="joint-node" data-joint="Muñeca der." tabindex="0" role="button" aria-label="Muñeca derecha">
+                      <circle cx="63" cy="192" r="8"/><text x="20" y="195">Muñ. D</text>
+                    </g>
+                    <g class="joint-node" data-joint="Muñeca izq." tabindex="0" role="button" aria-label="Muñeca izquierda">
+                      <circle cx="197" cy="192" r="8"/><text x="210" y="195">Muñ. I</text>
+                    </g>
+                    <g class="joint-node" data-joint="Dedos manos" tabindex="0" role="button" aria-label="Dedos de las manos">
+                      <circle cx="56" cy="215" r="8"/><circle cx="204" cy="215" r="8"/>
+                      <text x="214" y="218">Manos</text>
+                    </g>
+                    <g class="joint-node" data-joint="Rodilla der." tabindex="0" role="button" aria-label="Rodilla derecha">
+                      <circle cx="113" cy="252" r="10"/><text x="72" y="256">Rod. D</text>
+                    </g>
+                    <g class="joint-node" data-joint="Rodilla izq." tabindex="0" role="button" aria-label="Rodilla izquierda">
+                      <circle cx="147" cy="252" r="10"/><text x="162" y="256">Rod. I</text>
+                    </g>
+                    <g class="joint-node" data-joint="Tobillos" tabindex="0" role="button" aria-label="Tobillos">
+                      <circle cx="111" cy="316" r="8"/><circle cx="149" cy="316" r="8"/>
+                      <text x="162" y="320">Tobillos</text>
+                    </g>
+                  </svg>
+                </div>
+                <div class="joint-chips" id="quickJointChips">
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Rodilla der.">Rodilla der.</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Rodilla izq.">Rodilla izq.</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Muñeca der.">Muñeca der.</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Muñeca izq.">Muñeca izq.</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Dedos manos">Dedos manos</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Tobillos">Tobillos</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Codos">Codos</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Hombros">Hombros</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Cuello / Espalda">Espalda</button>
+                  <button type="button" class="joint-chip-btn" data-quick-joint="Mandíbula (ATM)">Mandíbula</button>
+                </div>
+              </div>
+
+              <div class="checkin-controls-col">
+                <div class="panel-header" style="margin-bottom:10px;">
+                  <div>
+                    <h2>Chequeo rápido de hoy</h2>
+                    <p class="panel-sub" id="quickCheckinDateLabel"></p>
+                  </div>
+                  <span class="pill pill-teal" id="quickMoodBadge">😊 Muy bien</span>
+                </div>
+
+                <div class="form-grid">
+                  <label class="field">
+                    <div class="field-label-row">
+                      <span>Dolor articular</span>
+                      <strong id="quickPainLabel">2 / 10</strong>
+                    </div>
+                    <input type="range" id="quickSymPain" min="0" max="10" value="2" class="range-input" />
+                  </label>
+
+                  <label class="field">
+                    <div class="field-label-row">
+                      <span>Fatiga / cansancio</span>
+                      <strong id="quickFatigueLabel">3 / 10</strong>
+                    </div>
+                    <input type="range" id="quickSymFatigue" min="0" max="10" value="3" class="range-input" />
+                  </label>
+
+                  <div class="field">
+                    <div class="field-label-row">
+                      <span>Rigidez matutina (minutos)</span>
+                      <div class="stiffness-presets">
+                        <button type="button" class="btn btn-secondary btn-xs" data-stiff-preset="0">0m</button>
+                        <button type="button" class="btn btn-secondary btn-xs" data-stiff-preset="15">15m</button>
+                        <button type="button" class="btn btn-secondary btn-xs" data-stiff-preset="30">30m</button>
+                        <button type="button" class="btn btn-secondary btn-xs" data-stiff-preset="60">60m</button>
+                      </div>
+                    </div>
+                    <input type="number" id="quickSymStiffness" class="input" min="0" max="600" value="10" />
+                  </div>
+
+                  <label class="field">
+                    <span>Nota rápida del día</span>
+                    <textarea id="quickSymNote" class="input" rows="2" placeholder="Ej. Hice estiramientos, molestia leve al despertar..."></textarea>
+                  </label>
+
+                  <button type="button" class="btn btn-primary" id="btnSaveQuickSymptom">Guardar chequeo de hoy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="symptoms-layout">
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Tendencia reciente</h2>
+                  <p class="panel-sub">Dolor (0-10) y Fatiga (0-10) en tus últimos registros</p>
+                </div>
+              </div>
+              <div id="symptomChartBox" class="chart-box"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Historial de registros</h2>
+                  <p class="panel-sub">Notas diarias y articulaciones reportadas</p>
+                </div>
+              </div>
+              <div id="symptomHistoryList" class="stack-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- View: MI PERFIL -->
+        <section id="view-profile" class="view" aria-labelledby="profileHeading">
+          <div class="section-header">
+            <div>
+              <h1 id="profileHeading">Mi Perfil Clínico</h1>
+              <p class="section-sub">Información personal, ficha médica rápida y respaldos locales.</p>
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-secondary" id="btnPrintCard" type="button">Imprimir ficha médica</button>
+              <button class="btn btn-soft" id="btnCopyCard" type="button">Copiar resumen</button>
+            </div>
+          </div>
+
+          <div class="profile-grid">
+            <!-- Printable Medical Card -->
+            <div class="panel printable-card" id="medicalCardPanel">
+              <div class="panel-header">
+                <div>
+                  <h2>Ficha Médica Personal</h2>
+                  <p class="panel-sub">Resumen rápido para consultas o urgencias</p>
+                </div>
+                <span class="pill pill-teal" id="cardBmiBadge">IMC —</span>
+              </div>
+              <div id="medicalCardContent"></div>
+            </div>
+
+            <!-- Edit Profile Form -->
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Mis datos</h2>
+                  <p class="panel-sub">Actualiza tu peso, contactos o información clínica cuando cambie</p>
+                </div>
+              </div>
+              <form id="profileForm" class="form-grid">
+                <label class="field">
+                  <span>Nombre completo</span>
+                  <input class="input" name="fullName" type="text" required />
+                </label>
+                <div class="field-row-3">
+                  <label class="field">
+                    <span>Edad (años)</span>
+                    <input class="input" name="age" type="number" min="1" max="120" required />
+                  </label>
+                  <label class="field">
+                    <span>Estatura (cm)</span>
+                    <input class="input" name="heightCm" type="number" min="50" max="250" required />
+                  </label>
+                  <label class="field">
+                    <span>Peso (kg)</span>
+                    <input class="input" name="weightKg" type="number" step="0.1" min="10" max="300" required />
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Diagnóstico principal</span>
+                  <input class="input" name="diagnosis" type="text" />
+                </label>
+                <div class="field-row-2">
+                  <label class="field">
+                    <span>Grupo sanguíneo</span>
+                    <select class="input" name="bloodType">
+                      <option value="">Sin especificar</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>EPS / Seguro médico</span>
+                    <input class="input" name="insurance" type="text" placeholder="Ej. Sura, Sanitas..." />
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Alergias conocidas</span>
+                  <input class="input" name="allergies" type="text" placeholder="Ej. Ninguna conocida, Penicilina..." />
+                </label>
+                <div class="field-row-2">
+                  <label class="field">
+                    <span>Reumatólogo / Médico tratante</span>
+                    <input class="input" name="rheumatologist" type="text" placeholder="Nombre del especialista" />
+                  </label>
+                  <label class="field">
+                    <span>Teléfono contacto emergencia</span>
+                    <input class="input" name="emergencyContact" type="text" placeholder="Nombre y teléfono" />
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Notas clínicas importantes</span>
+                  <textarea class="input" name="notes" rows="3" placeholder="Antecedentes, intolerancias, observaciones..."></textarea>
+                </label>
+                <div class="form-actions">
+                  <button class="btn btn-primary" type="submit">Guardar cambios del perfil</button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Notifications & Data Backup -->
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Recordatorios y PWA</h2>
+                  <p class="panel-sub">Configura avisos locales y modo offline</p>
+                </div>
+              </div>
+              <div class="settings-list">
+                <div class="setting-row">
+                  <div>
+                    <strong>Notificaciones del navegador</strong>
+                    <p class="setting-desc" id="notifPermDesc">Permite mostrar avisos cuando llegue la hora de un medicamento.</p>
+                  </div>
+                  <div class="setting-controls">
+                    <button class="btn btn-primary btn-sm" id="btnEnableNotifications" type="button">Activar</button>
+                    <button class="btn btn-ghost btn-sm" id="btnTestNotification" type="button">Probar</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <strong>Modo insistente (repetir hasta tomarla)</strong>
+                    <p class="setting-desc">Si cierras o ignoras el aviso, seguirá recordándote hasta que marques el medicamento como tomado.</p>
+                  </div>
+                  <select class="input select-sm" id="selectRepeatInterval" aria-label="Frecuencia de repetición del recordatorio">
+                    <option value="5">Cada 5 minutos</option>
+                    <option value="10">Cada 10 minutos</option>
+                    <option value="15">Cada 15 minutos</option>
+                    <option value="30">Cada 30 minutos</option>
+                    <option value="0">Solo una vez (sin repetir)</option>
+                  </select>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <strong>Sonido suave de recordatorio</strong>
+                    <p class="setting-desc">Emite un tono discreto dentro de la app al vencer o repetirse una toma.</p>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="chkSoundEnabled" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="setting-row" id="pwaInstallRow">
+                  <div>
+                    <strong>Instalar en pantalla de inicio</strong>
+                    <p class="setting-desc" id="pwaInstallDesc">Úsala como app independiente en tu celular o computador (funciona offline).</p>
+                  </div>
+                  <button class="btn btn-soft btn-sm" id="btnInstallPwa" type="button" hidden>Instalar</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Privacidad y Respaldo Local</h2>
+                  <p class="panel-sub">Tus datos se guardan solo en este dispositivo</p>
+                </div>
+              </div>
+              <div class="backup-actions">
+                <button class="btn btn-secondary" id="btnExportJson" type="button">Exportar respaldo (.json)</button>
+                <label class="btn btn-soft file-btn">
+                  Importar respaldo (.json)
+                  <input type="file" id="inputImportJson" accept=".json,application/json" hidden />
+                </label>
+                <button class="btn btn-ghost" id="btnLoadDemo" type="button">Cargar ejemplos de prueba</button>
+                <button class="btn btn-danger-ghost" id="btnClearDemo" type="button">Quitar ejemplos</button>
+              </div>
+              <p class="setting-desc mt-sm">Consejo: exporta un respaldo `.json` después de cada consulta importante o si cambias de dispositivo.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Bottom Navigation Mobile -->
+    <nav class="bottom-nav" id="mobileNav" aria-label="Navegación móvil">
+      <button class="bottom-nav-item active" data-view="today" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>Hoy</span>
+      </button>
+      <button class="bottom-nav-item" data-view="meds" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.5 20.5 19 12a4.95 4.95 0 1 0-7-7L3.5 13.5a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+        <span>Medicina</span>
+      </button>
+      <button class="bottom-nav-item" data-view="consults" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/></svg>
+        <span>Consultas</span>
+      </button>
+      <button class="bottom-nav-item" data-view="symptoms" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+        <span>Bienestar</span>
+      </button>
+      <button class="bottom-nav-item" data-view="profile" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+        <span>Perfil</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- MODAL: MEDICAMENTO -->
+  <dialog id="medModal" class="modal">
+    <form method="dialog" id="medForm" class="modal-card">
+      <div class="modal-header">
+        <h3 id="medModalTitle">Nuevo medicamento</h3>
+        <button class="icon-btn" type="button" data-close-modal="medModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body form-grid">
+        <input type="hidden" name="id" />
+        <div class="field-row-2">
+          <label class="field">
+            <span>Nombre del medicamento *</span>
+            <input class="input" name="name" type="text" required placeholder="Ej. Metotrexato, Ácido fólico..." />
+          </label>
+          <label class="field">
+            <span>Dosis *</span>
+            <input class="input" name="dose" type="text" required placeholder="Ej. 15 mg, 1 tableta..." />
+          </label>
+        </div>
+
+        <div class="field-row-2">
+          <label class="field">
+            <span>Presentación</span>
+            <select class="input" name="form">
+              <option value="Tableta">Tableta</option>
+              <option value="Cápsula">Cápsula</option>
+              <option value="Inyección subcutánea">Inyección subcutánea</option>
+              <option value="Gotas / Jarabe">Gotas / Jarabe</option>
+              <option value="Gel / Crema">Gel / Crema</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Frecuencia *</span>
+            <select class="input" name="frequency" id="medFrequencySelect">
+              <option value="daily">Todos los días</option>
+              <option value="weekly">Días específicos de la semana</option>
+              <option value="interval">Cada X días (ej. cada 14 días)</option>
+              <option value="prn">Según necesidad (SOS / dolor)</option>
+            </select>
+          </label>
+        </div>
+
+        <!-- Weekly Picker -->
+        <div class="field" id="medWeeklyBox" hidden>
+          <span>¿Qué días de la semana?</span>
+          <div class="weekday-pills" id="medWeekdayPills">
+            <label class="day-pill"><input type="checkbox" value="1" /><span>Lun</span></label>
+            <label class="day-pill"><input type="checkbox" value="2" /><span>Mar</span></label>
+            <label class="day-pill"><input type="checkbox" value="3" /><span>Mié</span></label>
+            <label class="day-pill"><input type="checkbox" value="4" /><span>Jue</span></label>
+            <label class="day-pill"><input type="checkbox" value="5" /><span>Vie</span></label>
+            <label class="day-pill"><input type="checkbox" value="6" /><span>Sáb</span></label>
+            <label class="day-pill"><input type="checkbox" value="0" /><span>Dom</span></label>
+          </div>
+        </div>
+
+        <!-- Interval Picker -->
+        <div class="field-row-2" id="medIntervalBox" hidden>
+          <label class="field">
+            <span>Repetir cada cuántos días</span>
+            <input class="input" name="intervalDays" type="number" min="2" max="90" value="14" />
+          </label>
+          <label class="field">
+            <span>Fecha de referencia / inicio</span>
+            <input class="input" name="startDate" type="date" />
+          </label>
+        </div>
+
+        <!-- Times Picker -->
+        <div class="field" id="medTimesBox">
+          <div class="field-label-row">
+            <span>Horarios de toma</span>
+            <button class="btn btn-soft btn-xs" type="button" id="btnAddTimeSlot">+ Añadir hora</button>
+          </div>
+          <div id="medTimesList" class="times-list"></div>
+        </div>
+
+        <div class="field-row-3">
+          <label class="field">
+            <span>Color identificador</span>
+            <input class="input color-input" name="color" type="color" value="#5b46f6" />
+          </label>
+          <label class="field">
+            <span>Unidades disponibles</span>
+            <input class="input" name="stock" type="number" min="0" placeholder="Opcional" />
+          </label>
+          <label class="field">
+            <span>Avisar si quedan ≤</span>
+            <input class="input" name="lowStockAlert" type="number" min="0" value="4" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Instrucciones / Notas</span>
+          <textarea class="input" name="instructions" rows="2" placeholder="Ej. Tomar con comida, rotar zona de inyección, no mezclar con..."></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" type="button" data-close-modal="medModal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar medicamento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- MODAL: CONSULTA -->
+  <dialog id="consultModal" class="modal modal-lg">
+    <form method="dialog" id="consultForm" class="modal-card">
+      <div class="modal-header">
+        <h3 id="consultModalTitle">Registrar consulta médica</h3>
+        <button class="icon-btn" type="button" data-close-modal="consultModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body form-grid">
+        <input type="hidden" name="id" />
+        <div class="field-row-3">
+          <label class="field">
+            <span>Fecha *</span>
+            <input class="input" name="dateISO" type="date" required />
+          </label>
+          <label class="field">
+            <span>Hora</span>
+            <input class="input" name="timeHM" type="time" value="09:00" />
+          </label>
+          <label class="field">
+            <span>Estado</span>
+            <select class="input" name="status">
+              <option value="completed">Consulta realizada</option>
+              <option value="upcoming">Próxima cita agendada</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field-row-3">
+          <label class="field">
+            <span>Especialidad *</span>
+            <select class="input" name="specialty" required>
+              <option value="Reumatología">Reumatología</option>
+              <option value="Oftalmología">Oftalmología</option>
+              <option value="Fisioterapia">Fisioterapia</option>
+              <option value="Medicina General">Medicina General</option>
+              <option value="Laboratorio">Laboratorio</option>
+              <option value="Psicología">Psicología</option>
+              <option value="Otra">Otra</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Médico / Profesional</span>
+            <input class="input" name="doctor" type="text" placeholder="Ej. Dra. Laura Mendoza" />
+          </label>
+          <label class="field">
+            <span>Clínica / IPS / Lugar</span>
+            <input class="input" name="clinic" type="text" placeholder="Ej. Hospital Universitario..." />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Motivo de consulta / Síntomas que llevaste</span>
+          <textarea class="input" name="reason" rows="2" placeholder="Ej. Control trimestral, molestia en muñeca derecha..."></textarea>
+        </label>
+
+        <label class="field">
+          <span>Evaluación / Qué dijo el médico</span>
+          <textarea class="input" name="findings" rows="3" placeholder="Examen físico, estado articular, observaciones del especialista..."></textarea>
+        </label>
+
+        <label class="field">
+          <span>Indicaciones / Cambios en medicación / Plan</span>
+          <textarea class="input" name="plan" rows="3" placeholder="Ajustes de dosis, órdenes médicas, fisioterapia, recomendaciones..."></textarea>
+        </label>
+
+        <div class="field-row-2">
+          <label class="field">
+            <span>Resultados de laboratorio / Exámenes</span>
+            <textarea class="input" name="labs" rows="2" placeholder="Ej. PCR, VSG, hemograma, AST/ALT, factor reumatoideo..."></textarea>
+          </label>
+          <label class="field">
+            <span>Preguntas para la próxima consulta</span>
+            <textarea class="input" name="questions" rows="2" placeholder="Dudas sobre ejercicio, dosis, vacunas, síntomas..."></textarea>
+          </label>
+        </div>
+
+        <div class="field-row-2">
+          <label class="field">
+            <span>Fecha recomendada próximo control</span>
+            <input class="input" name="nextControlDate" type="date" />
+          </label>
+          <label class="field">
+            <span>Adjuntar fórmula o exámenes (imagen / PDF)</span>
+            <input class="input" id="consultFileInput" type="file" accept="image/*,.pdf" multiple />
+          </label>
+        </div>
+        <div id="consultPendingFiles" class="attachment-chips"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" type="button" data-close-modal="consultModal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar consulta</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- MODAL: DETALLE DE CONSULTA -->
+  <dialog id="consultDetailModal" class="modal modal-lg">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="detailConsultTitle">Detalle de consulta</h3>
+        <button class="icon-btn" type="button" data-close-modal="consultDetailModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body" id="detailConsultBody"></div>
+      <div class="modal-footer" id="detailConsultFooter"></div>
+    </div>
+  </dialog>
+
+  <!-- MODAL: BIENESTAR / SÍNTOMAS -->
+  <dialog id="symptomModal" class="modal">
+    <form method="dialog" id="symptomForm" class="modal-card">
+      <div class="modal-header">
+        <h3>Registro de bienestar</h3>
+        <button class="icon-btn" type="button" data-close-modal="symptomModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body form-grid">
+        <label class="field">
+          <span>Fecha</span>
+          <input class="input" name="dateISO" type="date" required />
+        </label>
+
+        <label class="field">
+          <div class="field-label-row">
+            <span>Nivel de dolor articular (0 = sin dolor, 10 = máximo)</span>
+            <strong id="painValBadge">2 / 10</strong>
+          </div>
+          <input type="range" name="pain" min="0" max="10" value="2" class="range-input" />
+        </label>
+
+        <label class="field">
+          <div class="field-label-row">
+            <span>Fatiga / Cansancio (0 - 10)</span>
+            <strong id="fatigueValBadge">3 / 10</strong>
+          </div>
+          <input type="range" name="fatigue" min="0" max="10" value="3" class="range-input" />
+        </label>
+
+        <label class="field">
+          <span>Rigidez matutina aproximada (minutos al despertar)</span>
+          <input class="input" name="stiffnessMin" type="number" min="0" max="600" value="10" />
+        </label>
+
+        <div class="field">
+          <span>Articulaciones con molestia o inflamación hoy</span>
+          <div class="joint-chips" id="jointChips">
+            <label class="day-pill"><input type="checkbox" value="Rodilla der." /><span>Rodilla der.</span></label>
+            <label class="day-pill"><input type="checkbox" value="Rodilla izq." /><span>Rodilla izq.</span></label>
+            <label class="day-pill"><input type="checkbox" value="Muñeca der." /><span>Muñeca der.</span></label>
+            <label class="day-pill"><input type="checkbox" value="Muñeca izq." /><span>Muñeca izq.</span></label>
+            <label class="day-pill"><input type="checkbox" value="Dedos manos" /><span>Dedos manos</span></label>
+            <label class="day-pill"><input type="checkbox" value="Tobillos" /><span>Tobillos</span></label>
+            <label class="day-pill"><input type="checkbox" value="Codos" /><span>Codos</span></label>
+            <label class="day-pill"><input type="checkbox" value="Hombros" /><span>Hombros</span></label>
+            <label class="day-pill"><input type="checkbox" value="Cuello / Espalda" /><span>Cuello / Espalda</span></label>
+            <label class="day-pill"><input type="checkbox" value="Mandíbula (ATM)" /><span>Mandíbula</span></label>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Observaciones del día</span>
+          <textarea class="input" name="note" rows="2" placeholder="Cómo respondiste al ejercicio, descanso, algún desencadenante..."></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" type="button" data-close-modal="symptomModal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar registro</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- MODAL: ALERTA INSISTENTE DE MEDICAMENTO -->
+  <dialog id="reminderAlertModal" class="modal">
+    <div class="modal-card reminder-modal-card">
+      <div class="modal-header">
+        <div class="reminder-badge-title">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          <h3>¡Hora de tu medicamento!</h3>
+        </div>
+        <button class="icon-btn" type="button" id="btnReminderDismissKeepGoing" aria-label="Seguir recordando luego">✕</button>
+      </div>
+      <div class="modal-body" id="reminderAlertBody"></div>
+      <div class="modal-footer reminder-modal-footer" id="reminderAlertFooter"></div>
+    </div>
+  </dialog>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

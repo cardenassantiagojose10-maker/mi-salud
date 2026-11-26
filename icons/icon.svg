@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4338ca"/>
+      <stop offset="55%" stop-color="#5b46f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="158" fill="#ffffff" fill-opacity="0.14"/>
+  <!-- Clean modern 4-point star / sparkle emblem -->
+  <path d="M256 126 L288 224 L386 256 L288 288 L256 386 L224 288 L126 256 L224 224 Z" fill="#ffffff"/>
+  <circle cx="372" cy="148" r="34" fill="#fbbf24"/>
+  <path d="M372 130v18l12 10" stroke="#4338ca" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
