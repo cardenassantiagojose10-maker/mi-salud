@@ -1776,3 +1776,86 @@ dialog.modal::backdrop {
     box-shadow: none;
   }
 }
+
+/* ---------------- Especialidades del perfil ---------------- */
+.card-specialty-picker {
+  margin-bottom: 14px;
+}
+
+.card-specialty-picker[hidden] {
+  display: none;
+}
+
+.specialties-list {
+  display: grid;
+  gap: 10px;
+}
+
+.specialty-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.specialty-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.specialty-card-main strong {
+  font-size: 1.02rem;
+}
+
+.specialty-card-main .pill {
+  align-self: flex-start;
+}
+
+.specialty-card-main p {
+  margin: 0;
+}
+
+.specialty-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.card-specialties {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.card-specialty-item ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.card-specialty-item .pill {
+  display: inline-block;
+}
+
+.empty-state-sm {
+  padding: 18px;
+  text-align: left;
+}
+
+@media print {
+  .card-specialty-picker {
+    display: none;
+  }
+}

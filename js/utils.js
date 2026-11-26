@@ -85,6 +85,47 @@ export function calcBMI(weightKg, heightCm) {
   return { value: rounded, category: 'Obesidad', tone: 'alert' };
 }
 
+// Catalogo base de especialidades. El usuario puede agregar las suyas
+// desde su perfil; estas solo siembran los selectores.
+export const SPECIALTIES_ES = [
+  'Medicina General',
+  'Odontología',
+  'Reumatología',
+  'Oftalmología',
+  'Dermatología',
+  'Ginecología',
+  'Endocrinología',
+  'Gastroenterología',
+  'Cardiología',
+  'Neurología',
+  'Ortopedia',
+  'Otorrinolaringología',
+  'Psicología',
+  'Psiquiatría',
+  'Nutrición',
+  'Fisioterapia',
+  'Laboratorio',
+  'Otra'
+];
+
+// Une el catalogo base con las especialidades que el usuario registro en su
+// perfil y con las que ya aparecen en su historial, sin duplicar.
+export function buildSpecialtyOptions(profileSpecialties = [], consultations = []) {
+  const seen = new Map();
+  const add = (name) => {
+    const clean = String(name || '').trim();
+    if (!clean) return;
+    const key = clean.toLocaleLowerCase('es');
+    if (!seen.has(key)) seen.set(key, clean);
+  };
+  profileSpecialties.forEach((sp) => add(sp.name));
+  consultations.forEach((c) => add(c.specialty));
+  SPECIALTIES_ES.forEach(add);
+  const all = [...seen.values()];
+  // "Otra" siempre va de ultima
+  return [...all.filter((n) => n !== 'Otra').sort((a, b) => a.localeCompare(b, 'es')), ...all.filter((n) => n === 'Otra')];
+}
+
 export const WEEKDAYS_ES = [
   { id: 1, short: 'Lun', full: 'Lunes' },
   { id: 2, short: 'Mar', full: 'Martes' },

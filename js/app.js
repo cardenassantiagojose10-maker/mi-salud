@@ -9,6 +9,7 @@ import {
 import {
   addDaysISO,
   buildICS,
+  buildSpecialtyOptions,
   calcBMI,
   downloadFile,
   escapeHtml,
@@ -35,6 +36,7 @@ let lastPoppedDoseKey = '';
 let quickSelectedJoints = new Set();
 let quickCheckinSyncedDate = '';
 let medFilter = 'active';
+let cardSpecialtyFilter = 'all';
 let consultFilter = 'all';
 let deferredInstallPrompt = null;
 let pendingConsultAttachments = [];
@@ -837,6 +839,11 @@ function renderMedsView() {
 }
 
 function renderConsultsView() {
+  const specFilterSelect = $('#consultSpecialtyFilter');
+  const keep = specFilterSelect.value || 'all';
+  fillSpecialtySelect(specFilterSelect, { includeAll: true });
+  specFilterSelect.value = [...specFilterSelect.options].some((o) => o.value === keep) ? keep : 'all';
+
   const q = ($('#consultSearchInput').value || '').trim().toLowerCase();
   const spec = $('#consultSpecialtyFilter').value;
 
@@ -1056,6 +1063,39 @@ function renderSymptomsView() {
     .join('');
 }
 
+// La ficha se puede preparar para una especialidad concreta: asi llevas al
+// odontologo solo lo suyo y no todo el historial.
+function renderCardSpecialties() {
+  const all = getSpecialties();
+  if (!all.length) return '';
+  const shown = cardSpecialtyFilter === 'all' ? all : all.filter((sp) => sp.name === cardSpecialtyFilter);
+  if (!shown.length) {
+    return `<p class="panel-sub mt-sm">No tienes datos guardados para ${escapeHtml(cardSpecialtyFilter)}.</p>`;
+  }
+  return `
+    <div class="card-specialties mt-sm">
+      <strong>${cardSpecialtyFilter === 'all' ? `Mis especialidades (${shown.length})` : escapeHtml(cardSpecialtyFilter)}:</strong>
+      ${shown
+        .map((sp) => {
+          const lines = [
+            sp.doctor ? `Médico: ${escapeHtml(sp.doctor)}` : '',
+            sp.clinic ? `Lugar: ${escapeHtml(sp.clinic)}` : '',
+            sp.phone ? `Contacto: ${escapeHtml(sp.phone)}` : '',
+            sp.diagnosis ? `Diagnóstico: ${escapeHtml(sp.diagnosis)}` : '',
+            sp.notes ? `Notas: ${escapeHtml(sp.notes)}` : ''
+          ].filter(Boolean);
+          return `
+            <div class="card-specialty-item">
+              <span class="pill">${escapeHtml(sp.name)}</span>
+              ${lines.length ? `<ul>${lines.map((l) => `<li>${l}</li>`).join('')}</ul>` : '<p class="panel-sub">Sin datos adicionales</p>'}
+            </div>
+          `;
+        })
+        .join('')}
+    </div>
+  `;
+}
+
 function renderProfileView() {
   const p = state.profile;
   const bmi = calcBMI(p.weightKg, p.heightCm);
@@ -1076,8 +1116,8 @@ function renderProfileView() {
       <div class="kv-item"><span>Alergias</span><strong>${escapeHtml(p.allergies || 'Ninguna registrada')}</strong></div>
       <div class="kv-item"><span>Contacto emergencia</span><strong>${escapeHtml(p.emergencyContact || 'Sin especificar')}</strong></div>
     </div>
-    ${p.rheumatologist ? `<p class="panel-sub"><strong>Reumatólogo tratante:</strong> ${escapeHtml(p.rheumatologist)}</p>` : ''}
     ${p.notes ? `<p class="panel-sub mt-sm"><strong>Notas clínicas:</strong> ${escapeHtml(p.notes)}</p>` : ''}
+    ${renderCardSpecialties()}
     <div class="card-meds-summary mt-sm">
       <strong>Medicación activa actual (${activeMeds.length}):</strong>
       ${
@@ -1100,6 +1140,17 @@ function renderProfileView() {
       form.elements[key].value = p[key] ?? '';
     }
   });
+  // Aqui solo tienen sentido las especialidades que el usuario realmente tiene
+  const cardSelect = $('#cardSpecialtySelect');
+  const own = getSpecialties().map((sp) => sp.name);
+  if (!own.includes(cardSpecialtyFilter)) cardSpecialtyFilter = 'all';
+  cardSelect.innerHTML =
+    '<option value="all">Todas mis especialidades</option>' +
+    own.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  cardSelect.value = cardSpecialtyFilter;
+  cardSelect.closest('.card-specialty-picker').hidden = own.length < 2;
+  renderSpecialtiesPanel();
+
   $('#chkSoundEnabled').checked = Boolean(state.settings.soundEnabled);
   $('#selectRepeatInterval').value = String(state.settings.repeatIntervalMin ?? 5);
   updateNotificationUI();
@@ -1200,6 +1251,95 @@ function exportMedICS(medId) {
   showToast('Evento de calendario (.ics) descargado.');
 }
 
+/* ---------------- Specialties ---------------- */
+function getSpecialties() {
+  return Array.isArray(state.profile.specialties) ? state.profile.specialties : [];
+}
+
+function countConsultsFor(specialtyName) {
+  return state.consultations.filter((c) => c.specialty === specialtyName).length;
+}
+
+// Siembra cualquier <select> de especialidad con el catalogo base mas lo que
+// el usuario ya tenga, conservando el valor seleccionado si sigue existiendo.
+function fillSpecialtySelect(select, { includeAll = false, selected = '' } = {}) {
+  if (!select) return;
+  const options = buildSpecialtyOptions(getSpecialties(), state.consultations);
+  const prev = selected || select.value;
+  select.innerHTML =
+    (includeAll ? '<option value="all">Todas las especialidades</option>' : '') +
+    options.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+  if (prev && options.includes(prev)) select.value = prev;
+  else if (includeAll) select.value = 'all';
+}
+
+function renderSpecialtiesPanel() {
+  const box = $('#specialtiesList');
+  const specialties = getSpecialties();
+
+  if (!specialties.length) {
+    box.innerHTML = `
+      <div class="empty-state empty-state-sm">
+        <p><strong>Aún no has dividido tu perfil</strong></p>
+        <p class="panel-sub">Agrega las áreas que te atienden —odontología, medicina general, oftalmología— para llevar el médico, el diagnóstico y las notas de cada una por separado.</p>
+      </div>
+    `;
+    return;
+  }
+
+  box.innerHTML = specialties
+    .map((sp) => {
+      const n = countConsultsFor(sp.name);
+      const detail = [sp.doctor, sp.clinic].filter(Boolean).join(' · ');
+      return `
+        <div class="specialty-card">
+          <div class="specialty-card-main">
+            <strong>${escapeHtml(sp.name)}</strong>
+            ${sp.diagnosis ? `<span class="pill pill-teal">${escapeHtml(sp.diagnosis)}</span>` : ''}
+            ${detail ? `<p class="panel-sub">${escapeHtml(detail)}</p>` : '<p class="panel-sub">Sin médico asignado</p>'}
+            ${sp.phone ? `<p class="panel-sub">📞 ${escapeHtml(sp.phone)}</p>` : ''}
+            <p class="panel-sub">${n === 1 ? '1 consulta registrada' : `${n} consultas registradas`}</p>
+          </div>
+          <div class="specialty-card-actions">
+            <button class="btn btn-soft btn-xs" type="button" data-edit-specialty="${escapeHtml(sp.id)}">Editar</button>
+            <button class="btn btn-ghost btn-xs" type="button" data-view-specialty="${escapeHtml(sp.name)}">Ver consultas</button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function openSpecialtyModal(specialtyId = null) {
+  const modal = $('#specialtyModal');
+  const form = $('#specialtyForm');
+  const sp = getSpecialties().find((x) => x.id === specialtyId) || null;
+  form.reset();
+
+  const select = $('#specialtyNameSelect');
+  fillSpecialtySelect(select, { selected: sp?.name || '' });
+  // Una especialidad que el usuario escribio a mano puede no estar en el catalogo
+  if (sp && ![...select.options].some((o) => o.value === sp.name)) {
+    select.insertAdjacentHTML('afterbegin', `<option value="${escapeHtml(sp.name)}">${escapeHtml(sp.name)}</option>`);
+    select.value = sp.name;
+  }
+
+  $('#specialtyModalTitle').textContent = sp ? 'Editar especialidad' : 'Agregar especialidad';
+  $('#btnDeleteSpecialty').hidden = !sp;
+  form.elements.id.value = sp?.id || '';
+  form.elements.doctor.value = sp?.doctor || '';
+  form.elements.phone.value = sp?.phone || '';
+  form.elements.clinic.value = sp?.clinic || '';
+  form.elements.diagnosis.value = sp?.diagnosis || '';
+  form.elements.notes.value = sp?.notes || '';
+  syncSpecialtyCustomVisibility();
+  modal.showModal();
+}
+
+function syncSpecialtyCustomVisibility() {
+  $('#specialtyCustomBox').hidden = $('#specialtyNameSelect').value !== 'Otra';
+}
+
 /* ---------------- Modals: Consultations ---------------- */
 function renderPendingAttachments() {
   const box = $('#consultPendingFiles');
@@ -1233,9 +1373,13 @@ function openConsultModal(consultId = null, forceCompleted = false) {
   form.elements.dateISO.value = c?.dateISO || toLocalDateISO();
   form.elements.timeHM.value = c?.timeHM || '09:00';
   form.elements.status.value = forceCompleted ? 'completed' : c?.status || 'upcoming';
-  form.elements.specialty.value = c?.specialty || 'Reumatología';
-  form.elements.doctor.value = c?.doctor || state.profile.rheumatologist || '';
-  form.elements.clinic.value = c?.clinic || '';
+  fillSpecialtySelect($('#consultSpecialtySelect'), { selected: c?.specialty || getSpecialties()[0]?.name || '' });
+  if (c?.specialty) form.elements.specialty.value = c.specialty;
+
+  // Si ya registraste al médico de esa especialidad en tu perfil, se precarga
+  const profileSpe = getSpecialties().find((sp) => sp.name === form.elements.specialty.value);
+  form.elements.doctor.value = c?.doctor || profileSpe?.doctor || '';
+  form.elements.clinic.value = c?.clinic || profileSpe?.clinic || '';
   form.elements.reason.value = c?.reason || '';
   form.elements.findings.value = c?.findings || '';
   form.elements.plan.value = c?.plan || '';
@@ -1549,6 +1693,25 @@ function initEvents() {
 
   // Delegated clicks for dynamic lists
   document.body.addEventListener('click', (e) => {
+    const editSpe = e.target.closest('[data-edit-specialty]');
+    if (editSpe) {
+      openSpecialtyModal(editSpe.dataset.editSpecialty);
+      return;
+    }
+    const viewSpe = e.target.closest('[data-view-specialty]');
+    if (viewSpe) {
+      const name = viewSpe.dataset.viewSpecialty;
+      consultFilter = 'all';
+      setView('consults');
+      $$('[data-consult-filter]').forEach((b) => b.classList.toggle('active', b.dataset.consultFilter === 'all'));
+      const filterSelect = $('#consultSpecialtyFilter');
+      fillSpecialtySelect(filterSelect, { includeAll: true, selected: name });
+      filterSelect.value = name;
+      renderConsultsView();
+      showToast(`Mostrando tus consultas de ${name}.`);
+      return;
+    }
+
     const dayBtn = e.target.closest('[data-select-day]');
     if (dayBtn) {
       selectedDateISO = dayBtn.dataset.selectDay;
@@ -1901,20 +2064,99 @@ function initEvents() {
     state.profile = {
       ...state.profile,
       fullName: String(fd.get('fullName')).trim(),
-      age: Number(fd.get('age')) || 21,
-      heightCm: Number(fd.get('heightCm')) || 171,
-      weightKg: Number(fd.get('weightKg')) || 62,
+      age: fd.get('age') ? Number(fd.get('age')) : '',
+      heightCm: fd.get('heightCm') ? Number(fd.get('heightCm')) : '',
+      weightKg: fd.get('weightKg') ? Number(fd.get('weightKg')) : '',
       diagnosis: String(fd.get('diagnosis') || '').trim(),
       bloodType: fd.get('bloodType'),
       insurance: String(fd.get('insurance') || '').trim(),
       allergies: String(fd.get('allergies') || '').trim(),
-      rheumatologist: String(fd.get('rheumatologist') || '').trim(),
       emergencyContact: String(fd.get('emergencyContact') || '').trim(),
       notes: String(fd.get('notes') || '').trim()
     };
     persist();
     renderAll();
     showToast('Perfil clínico actualizado.');
+  });
+
+  // --- Especialidades del perfil ---
+  $('#btnNewSpecialty').addEventListener('click', () => openSpecialtyModal());
+
+  $('#specialtyNameSelect').addEventListener('change', syncSpecialtyCustomVisibility);
+
+  // Al cambiar de area dentro del modal de consulta, traemos su medico
+  $('#consultSpecialtySelect').addEventListener('change', (e) => {
+    const sp = getSpecialties().find((x) => x.name === e.target.value);
+    if (!sp) return;
+    const form = $('#consultForm');
+    if (!form.elements.doctor.value.trim() && sp.doctor) form.elements.doctor.value = sp.doctor;
+    if (!form.elements.clinic.value.trim() && sp.clinic) form.elements.clinic.value = sp.clinic;
+  });
+
+  $('#cardSpecialtySelect').addEventListener('change', (e) => {
+    cardSpecialtyFilter = e.target.value;
+    renderProfileView();
+  });
+
+  $('#specialtyForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const picked = String(fd.get('name') || '').trim();
+    const custom = String(fd.get('customName') || '').trim();
+    const name = picked === 'Otra' ? custom : picked;
+    if (!name) {
+      showToast('Escribe el nombre de la especialidad.');
+      return;
+    }
+
+    const id = String(fd.get('id') || '');
+    const list = getSpecialties();
+    const duplicate = list.some(
+      (sp) => sp.id !== id && sp.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es')
+    );
+    if (duplicate) {
+      showToast(`Ya tienes "${name}" en tu perfil.`);
+      return;
+    }
+
+    const data = {
+      id: id || uid('spe'),
+      name,
+      doctor: String(fd.get('doctor') || '').trim(),
+      phone: String(fd.get('phone') || '').trim(),
+      clinic: String(fd.get('clinic') || '').trim(),
+      diagnosis: String(fd.get('diagnosis') || '').trim(),
+      notes: String(fd.get('notes') || '').trim()
+    };
+
+    const idx = list.findIndex((sp) => sp.id === id);
+    if (idx >= 0) list[idx] = data;
+    else list.push(data);
+    state.profile.specialties = list;
+
+    persist();
+    $('#specialtyModal').close();
+    renderAll();
+    showToast(idx >= 0 ? 'Especialidad actualizada.' : `"${name}" agregada a tu perfil.`);
+  });
+
+  $('#btnDeleteSpecialty').addEventListener('click', () => {
+    const id = $('#specialtyForm').elements.id.value;
+    const sp = getSpecialties().find((x) => x.id === id);
+    if (!sp) return;
+    const n = countConsultsFor(sp.name);
+    const warning = n
+      ? `Se quitará "${sp.name}" de tu perfil. Tus ${n === 1 ? '1 consulta' : `${n} consultas`} de esa área NO se borran.`
+      : `Se quitará "${sp.name}" de tu perfil.`;
+    if (!confirm(`${warning}
+
+¿Continuar?`)) return;
+    state.profile.specialties = getSpecialties().filter((x) => x.id !== id);
+    if (cardSpecialtyFilter === sp.name) cardSpecialtyFilter = 'all';
+    persist();
+    $('#specialtyModal').close();
+    renderAll();
+    showToast('Especialidad eliminada del perfil.');
   });
 
   $('#btnPrintCard').addEventListener('click', () => window.print());
@@ -1925,16 +2167,43 @@ function initEvents() {
       .filter((m) => m.active !== false)
       .map((m) => `- ${m.name} (${m.dose}) · ${formatFrequencyEs(m)}`)
       .join('\n');
+    const shown =
+      cardSpecialtyFilter === 'all'
+        ? getSpecialties()
+        : getSpecialties().filter((sp) => sp.name === cardSpecialtyFilter);
+    const specialtiesText = shown.length
+      ? `\nEspecialidades:\n${shown
+          .map(
+            (sp) =>
+              `- ${sp.name}${sp.doctor ? ` · ${sp.doctor}` : ''}${sp.clinic ? ` · ${sp.clinic}` : ''}${
+                sp.phone ? ` · ${sp.phone}` : ''
+              }${sp.diagnosis ? `\n    Diagnóstico: ${sp.diagnosis}` : ''}${
+                sp.notes ? `\n    Notas: ${sp.notes}` : ''
+              }`
+          )
+          .join('\n')}`
+      : '';
+
+    const measures = [
+      p.age ? `Edad: ${p.age} años` : '',
+      p.heightCm ? `Estatura: ${p.heightCm} cm` : '',
+      p.weightKg ? `Peso: ${p.weightKg} kg (IMC ${bmi.value})` : ''
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
     const text = [
-      `FICHA MÉDICA PERSONAL`,
-      `Nombre: ${p.fullName}`,
-      `Edad: ${p.age} años | Estatura: ${p.heightCm} cm | Peso: ${p.weightKg} kg (IMC ${bmi.value})`,
-      `Diagnóstico: ${p.diagnosis}`,
+      cardSpecialtyFilter === 'all'
+        ? 'FICHA MÉDICA PERSONAL'
+        : `FICHA MÉDICA — ${cardSpecialtyFilter.toUpperCase()}`,
+      `Nombre: ${p.fullName || 'Sin especificar'}`,
+      measures,
+      p.diagnosis ? `Diagnóstico principal: ${p.diagnosis}` : '',
       p.bloodType ? `Grupo sanguíneo: ${p.bloodType}` : '',
       p.allergies ? `Alergias: ${p.allergies}` : '',
       p.insurance ? `EPS/Seguro: ${p.insurance}` : '',
-      p.rheumatologist ? `Reumatólogo: ${p.rheumatologist}` : '',
       p.emergencyContact ? `Contacto emergencia: ${p.emergencyContact}` : '',
+      specialtiesText,
       `\nMedicación activa:\n${meds || 'Sin medicamentos registrados'}`
     ]
       .filter(Boolean)

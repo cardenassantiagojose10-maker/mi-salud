@@ -13,12 +13,48 @@ export function getDefaultProfile() {
     diagnosis: '',
     bloodType: '',
     allergies: '',
-    rheumatologist: '',
-    rheumatologistPhone: '',
     emergencyContact: '',
     insurance: '',
-    notes: ''
+    notes: '',
+    // Cada especialidad lleva su propio medico, sitio y notas:
+    // { id, name, doctor, phone, clinic, diagnosis, notes }
+    specialties: []
   };
+}
+
+// Perfiles guardados antes de que existieran las especialidades llevaban el
+// reumatologo suelto en la raiz. Lo convertimos en una especialidad para no
+// perder el dato.
+function migrateProfile(profile) {
+  const p = { ...profile };
+  if (!Array.isArray(p.specialties)) p.specialties = [];
+  const legacyDoctor = String(p.rheumatologist || '').trim();
+  const legacyPhone = String(p.rheumatologistPhone || '').trim();
+  if ((legacyDoctor || legacyPhone) && !p.specialties.some((sp) => sp.name === 'Reumatología')) {
+    p.specialties.push({
+      id: uid('spe'),
+      name: 'Reumatología',
+      doctor: legacyDoctor,
+      phone: legacyPhone,
+      clinic: '',
+      diagnosis: String(p.diagnosis || '').trim(),
+      notes: ''
+    });
+  }
+  delete p.rheumatologist;
+  delete p.rheumatologistPhone;
+  p.specialties = p.specialties
+    .filter((sp) => sp && String(sp.name || '').trim())
+    .map((sp) => ({
+      id: sp.id || uid('spe'),
+      name: String(sp.name).trim(),
+      doctor: String(sp.doctor || '').trim(),
+      phone: String(sp.phone || '').trim(),
+      clinic: String(sp.clinic || '').trim(),
+      diagnosis: String(sp.diagnosis || '').trim(),
+      notes: String(sp.notes || '').trim()
+    }));
+  return p;
 }
 
 export function getDefaultSettings() {
@@ -52,16 +88,22 @@ export function loadState() {
     }
     const parsed = JSON.parse(raw);
     const base = getInitialState();
-    return {
+    const needsMigration =
+      parsed.profile?.rheumatologist !== undefined ||
+      parsed.profile?.rheumatologistPhone !== undefined ||
+      !Array.isArray(parsed.profile?.specialties);
+    const merged = {
       ...base,
       ...parsed,
-      profile: { ...base.profile, ...(parsed.profile || {}) },
+      profile: migrateProfile({ ...base.profile, ...(parsed.profile || {}) }),
       settings: { ...base.settings, ...(parsed.settings || {}) },
       medications: Array.isArray(parsed.medications) ? parsed.medications : [],
       doseLogs: Array.isArray(parsed.doseLogs) ? parsed.doseLogs : [],
       consultations: Array.isArray(parsed.consultations) ? parsed.consultations : [],
       symptomLogs: Array.isArray(parsed.symptomLogs) ? parsed.symptomLogs : []
     };
+    if (needsMigration) saveState(merged);
+    return merged;
   } catch {
     return getInitialState();
   }

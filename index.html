@@ -219,12 +219,6 @@
             </div>
             <select id="consultSpecialtyFilter" class="input select-sm" aria-label="Filtrar por especialidad">
               <option value="all">Todas las especialidades</option>
-              <option value="Reumatología">Reumatología</option>
-              <option value="Oftalmología">Oftalmología</option>
-              <option value="Fisioterapia">Fisioterapia</option>
-              <option value="Medicina General">Medicina General</option>
-              <option value="Laboratorio">Laboratorio</option>
-              <option value="Otra">Otra</option>
             </select>
             <input type="search" id="consultSearchInput" class="input search-input" placeholder="Buscar doctor, síntomas, exámenes..." />
           </div>
@@ -414,6 +408,12 @@
                 </div>
                 <span class="pill pill-teal" id="cardBmiBadge">IMC —</span>
               </div>
+              <label class="field card-specialty-picker">
+                <span>Preparar ficha para</span>
+                <select class="input select-sm" id="cardSpecialtySelect">
+                  <option value="all">Todas mis especialidades</option>
+                </select>
+              </label>
               <div id="medicalCardContent"></div>
             </div>
 
@@ -446,7 +446,7 @@
                 </div>
                 <label class="field">
                   <span>Diagnóstico principal</span>
-                  <input class="input" name="diagnosis" type="text" />
+                  <input class="input" name="diagnosis" type="text" placeholder="El que te define hoy; cada especialidad puede tener el suyo" />
                 </label>
                 <div class="field-row-2">
                   <label class="field">
@@ -472,16 +472,10 @@
                   <span>Alergias conocidas</span>
                   <input class="input" name="allergies" type="text" placeholder="Ej. Ninguna conocida, Penicilina..." />
                 </label>
-                <div class="field-row-2">
-                  <label class="field">
-                    <span>Reumatólogo / Médico tratante</span>
-                    <input class="input" name="rheumatologist" type="text" placeholder="Nombre del especialista" />
-                  </label>
-                  <label class="field">
-                    <span>Teléfono contacto emergencia</span>
-                    <input class="input" name="emergencyContact" type="text" placeholder="Nombre y teléfono" />
-                  </label>
-                </div>
+                <label class="field">
+                  <span>Teléfono contacto emergencia</span>
+                  <input class="input" name="emergencyContact" type="text" placeholder="Nombre y teléfono" />
+                </label>
                 <label class="field">
                   <span>Notas clínicas importantes</span>
                   <textarea class="input" name="notes" rows="3" placeholder="Antecedentes, intolerancias, observaciones..."></textarea>
@@ -490,6 +484,18 @@
                   <button class="btn btn-primary" type="submit">Guardar cambios del perfil</button>
                 </div>
               </form>
+            </div>
+
+            <!-- Specialties -->
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Mis especialidades</h2>
+                  <p class="panel-sub">Separa tu perfil por área: odontología, medicina general, oftalmología y las que necesites</p>
+                </div>
+                <button class="btn btn-primary btn-sm" id="btnNewSpecialty" type="button">+ Agregar</button>
+              </div>
+              <div id="specialtiesList" class="specialties-list"></div>
             </div>
 
             <!-- Notifications & Data Backup -->
@@ -727,15 +733,7 @@
         <div class="field-row-3">
           <label class="field">
             <span>Especialidad *</span>
-            <select class="input" name="specialty" required>
-              <option value="Reumatología">Reumatología</option>
-              <option value="Oftalmología">Oftalmología</option>
-              <option value="Fisioterapia">Fisioterapia</option>
-              <option value="Medicina General">Medicina General</option>
-              <option value="Laboratorio">Laboratorio</option>
-              <option value="Psicología">Psicología</option>
-              <option value="Otra">Otra</option>
-            </select>
+            <select class="input" name="specialty" id="consultSpecialtySelect" required></select>
           </label>
           <label class="field">
             <span>Médico / Profesional</span>
@@ -867,6 +865,53 @@
   </dialog>
 
   <!-- MODAL: ALERTA INSISTENTE DE MEDICAMENTO -->
+  <dialog id="specialtyModal" class="modal">
+    <form method="dialog" id="specialtyForm" class="modal-card">
+      <div class="modal-header">
+        <h3 id="specialtyModalTitle">Agregar especialidad</h3>
+        <button class="icon-btn" type="button" data-close-modal="specialtyModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <label class="field">
+          <span>Especialidad</span>
+          <select class="input" name="name" id="specialtyNameSelect" required></select>
+        </label>
+        <label class="field" id="specialtyCustomBox" hidden>
+          <span>Nombre de la especialidad</span>
+          <input class="input" name="customName" type="text" placeholder="Ej. Terapia ocupacional" />
+        </label>
+        <div class="field-row-2">
+          <label class="field">
+            <span>Médico tratante</span>
+            <input class="input" name="doctor" type="text" placeholder="Ej. Dra. Laura Mendoza" />
+          </label>
+          <label class="field">
+            <span>Teléfono / contacto</span>
+            <input class="input" name="phone" type="text" placeholder="Ej. 300 123 4567" />
+          </label>
+        </div>
+        <label class="field">
+          <span>Clínica o consultorio</span>
+          <input class="input" name="clinic" type="text" placeholder="Ej. Centro Médico del Norte" />
+        </label>
+        <label class="field">
+          <span>Diagnóstico o motivo en esta área</span>
+          <input class="input" name="diagnosis" type="text" placeholder="Ej. Bruxismo, miopía, hipotiroidismo..." />
+        </label>
+        <label class="field">
+          <span>Notas para esta especialidad</span>
+          <textarea class="input" name="notes" rows="3" placeholder="Antecedentes, tratamientos previos, lo que el especialista debe saber..."></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger-ghost" type="button" id="btnDeleteSpecialty" hidden>Eliminar</button>
+        <button class="btn btn-ghost" type="button" data-close-modal="specialtyModal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar especialidad</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="reminderAlertModal" class="modal">
     <div class="modal-card reminder-modal-card">
       <div class="modal-header">
