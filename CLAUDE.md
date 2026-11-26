@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"Mi Salud ARJ" — a personal, single-user PWA (in Spanish) for tracking medication reminders, symptoms, and medical consultations for Juvenile Rheumatoid Arthritis (ARJ). It is a static, no-build, vanilla JS app: plain HTML/CSS/JS loaded directly by the browser, with no package manager, bundler, framework, or test suite.
+"Mi Salud" — a single-user PWA (in Spanish) for tracking medication reminders, symptoms, and medical consultations. Originally built for Juvenile Rheumatoid Arthritis and later de-personalized for general use (chronic treatments and autoimmune conditions); the joint-map wellness view is the one remaining rheumatology-flavored feature. It is a static, no-build, vanilla JS app: plain HTML/CSS/JS loaded directly by the browser, with no package manager, bundler, framework, or test suite.
+
+No profile data is hardcoded: `getDefaultProfile()` returns empty fields and the user fills them in. Only `fullName` is a required form field. Keep it that way — the repo is public, and the diagnosis shown on the dashboard and medical card must come from `state.profile.diagnosis`, never a default.
 
 ## Running it
 
@@ -13,7 +15,7 @@ There is no build step and no `package.json`. To develop:
 - Serve the folder with any static file server from the project root and open `index.html` (a real HTTP origin is required — `file://` breaks ES module imports, the Service Worker, and IndexedDB). E.g. `npx serve .` or VS Code's Live Server.
 - Since `js/app.js` is loaded as `type="module"`, changes to `js/*.js` take effect on a browser reload — no compilation needed.
 - There is no linter, formatter, or automated test suite configured. Verify changes manually in the browser.
-- The Service Worker (`sw.js`) caches assets under `CACHE_NAME`. If you edit any cached file (`index.html`, `styles.css`, `js/*.js`, etc.), bump `CACHE_NAME` (e.g. `mi-salud-arj-v4`) so installed/offline clients pick up the update, and keep the `ASSETS` list in sync with any new/renamed files.
+- The Service Worker (`sw.js`) caches assets under `CACHE_NAME`. If you edit any cached file (`index.html`, `styles.css`, `js/*.js`, etc.), bump `CACHE_NAME` (e.g. `mi-salud-v6`) so installed/offline clients pick up the update, and keep the `ASSETS` list in sync with any new/renamed files.
 
 ## Architecture
 
